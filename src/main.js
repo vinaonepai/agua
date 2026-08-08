@@ -15,19 +15,30 @@ import '@ionic/vue/css/text-transformation.css';
 import '@ionic/vue/css/flex-utils.css';
 import '@ionic/vue/css/display.css';
 import './theme/variables.css';
+import { checkForAppUpdate, startAppVersionMonitor } from './data/app-version.js';
 import { clearStaleLocalCache } from './data/cache-store.js';
 import { applySavedTheme } from './data/theme-store.js';
 import { getSettings } from './data/settings-store.js';
 
-clearStaleLocalCache();
-applySavedTheme();
-getSettings();
+const startApp = async () => {
+  const updateFound = await checkForAppUpdate();
 
-const app = createApp(App)
-  .use(IonicVue)
-  .use(router);
+  if (updateFound) {
+    return;
+  }
 
-router.isReady().then(() => {
+  clearStaleLocalCache();
+  applySavedTheme();
+  getSettings();
+
+  const app = createApp(App)
+    .use(IonicVue)
+    .use(router);
+
+  await router.isReady();
   app.mount('#app');
-});
+  startAppVersionMonitor();
+};
+
+startApp();
 
