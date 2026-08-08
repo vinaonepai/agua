@@ -8,6 +8,7 @@ import ConsumptionPeriodPage from '../views/ConsumptionPeriodPage.vue';
 import GoalsPage from '../views/GoalsPage.vue';
 import DevicesPage from '../views/DevicesPage.vue';
 import DeviceDetailPage from '../views/DeviceDetailPage.vue';
+import ReportsPage from '../views/ReportsPage.vue';
 import ProfilePage from '../views/ProfilePage.vue';
 import SettingsPage from '../views/SettingsPage.vue';
 import TermsPage from '../views/TermsPage.vue';
@@ -45,6 +46,7 @@ const routes = [
   { path: '/metas', name: 'Metas', component: GoalsPage },
   { path: '/dispositivos', name: 'Dispositivos', component: DevicesPage },
   { path: '/dispositivos/:id', name: 'DetalheDispositivo', component: DeviceDetailPage },
+  { path: '/relatorios', name: 'Relatorios', component: ReportsPage },
   { path: '/perfil', name: 'Perfil', component: ProfilePage },
   { path: '/configuracoes', name: 'Configuracoes', component: SettingsPage },
 ];
