@@ -60,6 +60,7 @@ const buildAlert = ({ type, device = null, reading = null, message = '' }) => {
 
 export const generateTechnicalAlerts = ({ devices = [], readings = [], settings = {} } = {}) => {
   const alerts = [];
+  const canShowSimulatedAnomalies = settings.simulationMode && settings.anomalyDemo;
 
   devices.forEach((device) => {
     if (device.status === 'Offline') {
@@ -76,11 +77,11 @@ export const generateTechnicalAlerts = ({ devices = [], readings = [], settings 
   });
 
   readings.forEach((reading) => {
-    if (reading.status === 'anomaly') {
+    if (canShowSimulatedAnomalies && reading.status === 'anomaly') {
       alerts.push(buildAlert({ type: TECHNICAL_ALERT_TYPES.CONSUMPTION_ANOMALY, reading }));
     }
 
-    if (settings.anomalyDemo && reading.flowRate >= 15 && reading.liters >= 500) {
+    if (canShowSimulatedAnomalies && reading.flowRate >= 15 && reading.liters >= 500) {
       alerts.push(
         buildAlert({
           type: TECHNICAL_ALERT_TYPES.POSSIBLE_LEAK,

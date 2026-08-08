@@ -5,12 +5,11 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
-import { getCurrentUser, getFirestoreDb, isFirebaseReady } from './firebase.js';
+import { getCurrentUser, getFirestoreDb, isFirebaseReady, waitForCurrentUser } from './firebase.js';
 import { getSimulatedReadingsForDevice, normalizeReadingPayload, READING_PAYLOAD_VERSION } from './reading-service.js';
 import { getSettings } from '../data/settings-store.js';
 
@@ -59,11 +58,22 @@ const normalizeDevice = (device = {}) => ({
   lastFlowRate: Number(device.lastFlowRate || 0),
   lastPulseCount: Number(device.lastPulseCount || 0),
   lastReadingAt: device.lastReadingAt || null,
+  createdAt: device.createdAt || null,
+  updatedAt: device.updatedAt || null,
 });
 
 const withoutDeviceId = (device) => {
   const payload = { ...device };
   delete payload.id;
+
+  if (!payload.createdAt) {
+    delete payload.createdAt;
+  }
+
+  if (!payload.updatedAt) {
+    delete payload.updatedAt;
+  }
+
   return payload;
 };
 
@@ -93,6 +103,23 @@ const getUserDevicesCollection = () => {
   return collection(db, 'users', currentUser.uid, 'devices');
 };
 
+const resolveDeviceUser = async () => {
+  if (!isFirebaseReady()) {
+    return null;
+  }
+
+  return getCurrentUser() || await waitForCurrentUser();
+};
+
+const shouldUseLocalDevices = () => !isFirebaseReady();
+
+const sortDevicesByCreatedAt = (devices) =>
+  devices.slice().sort((first, second) => {
+    const firstDate = first.createdAt?.toDate?.() || new Date(first.createdAt || 0);
+    const secondDate = second.createdAt?.toDate?.() || new Date(second.createdAt || 0);
+    return secondDate.getTime() - firstDate.getTime();
+  });
+
 const deleteSubcollectionDocs = async (deviceRef, subcollectionName) => {
   const snapshot = await getDocs(collection(deviceRef, subcollectionName));
   await Promise.all(snapshot.docs.map((item) => deleteDoc(item.ref)));
@@ -107,13 +134,19 @@ const tryDeleteSubcollectionDocs = async (deviceRef, subcollectionName) => {
 };
 
 export const listDevices = async () => {
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     return getLocalDevices();
   }
 
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    return [];
+  }
+
   const devicesRef = getUserDevicesCollection();
-  const snapshot = await getDocs(query(devicesRef, orderBy('createdAt', 'desc')));
-  return snapshot.docs.map((item) => normalizeDevice({ ...item.data(), id: item.id }));
+  const snapshot = await getDocs(query(devicesRef));
+  return sortDevicesByCreatedAt(snapshot.docs.map((item) => normalizeDevice({ ...item.data(), id: item.id })));
 };
 
 export const getDeviceById = async (deviceId) => {
@@ -121,8 +154,14 @@ export const getDeviceById = async (deviceId) => {
     return null;
   }
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     return getLocalDevices().find((device) => device.id === deviceId) || null;
+  }
+
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    return null;
   }
 
   const devicesRef = getUserDevicesCollection();
@@ -161,12 +200,12 @@ export const listDeviceReadings = async (deviceId) => {
     return [];
   }
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     return buildLocalDeviceReadings(device);
   }
 
   const devicesRef = getUserDevicesCollection();
-  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'readings'), orderBy('timestamp', 'desc')));
+  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'readings')));
   const readings = snapshot.docs.map((item) =>
     normalizeReadingPayload({
       ...item.data(),
@@ -187,7 +226,7 @@ export const listDeviceAlerts = async (deviceId) => {
     return [];
   }
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     return [
       {
         id: `${device.id}-waiting`,
@@ -199,7 +238,7 @@ export const listDeviceAlerts = async (deviceId) => {
   }
 
   const devicesRef = getUserDevicesCollection();
-  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'alerts'), orderBy('createdAt', 'desc')));
+  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'alerts')));
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 };
 
@@ -210,7 +249,7 @@ export const listDeviceMaintenanceOrders = async (deviceId) => {
     return [];
   }
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     return [
       {
         id: `${device.id}-installation-check`,
@@ -222,7 +261,7 @@ export const listDeviceMaintenanceOrders = async (deviceId) => {
   }
 
   const devicesRef = getUserDevicesCollection();
-  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'maintenanceOrders'), orderBy('createdAt', 'desc')));
+  const snapshot = await getDocs(query(collection(devicesRef, deviceId, 'maintenanceOrders')));
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 };
 
@@ -236,9 +275,15 @@ export const createDevice = async (device) => {
     lastReadingAt: null,
   });
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     const devices = saveLocalDevices([{ ...nextDevice, id: `local-${Date.now()}` }, ...getLocalDevices()]);
     return devices[0];
+  }
+
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    throw new Error('Entre na conta antes de cadastrar dispositivos.');
   }
 
   const devicesRef = getUserDevicesCollection();
@@ -343,9 +388,15 @@ export const updateDeviceStatus = async (deviceId, status) => {
     return;
   }
 
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     saveLocalDevices(getLocalDevices().map((device) => (device.id === deviceId ? { ...device, status } : device)));
     return;
+  }
+
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    throw new Error('Entre na conta antes de atualizar dispositivos.');
   }
 
   const devicesRef = getUserDevicesCollection();
@@ -360,16 +411,33 @@ export const updateDeviceStatus = async (deviceId, status) => {
 };
 
 export const updateDevice = async (deviceId, updates) => {
-  const nextUpdates = normalizeDevice({
-    ...updates,
-    id: deviceId,
-  });
-  const payload = withoutDeviceId(nextUpdates);
-
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     saveLocalDevices(getLocalDevices().map((device) => (device.id === deviceId ? normalizeDevice({ ...device, ...updates }) : device)));
     return;
   }
+
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    throw new Error('Entre na conta antes de atualizar dispositivos.');
+  }
+
+  const currentDevice = await getDeviceById(deviceId);
+
+  if (!currentDevice) {
+    throw new Error('Dispositivo nao encontrado.');
+  }
+
+  const nextUpdates = normalizeDevice({
+    ...currentDevice,
+    ...updates,
+    sensor: {
+      ...currentDevice.sensor,
+      ...updates.sensor,
+    },
+    id: deviceId,
+  });
+  const payload = withoutDeviceId(nextUpdates);
 
   const devicesRef = getUserDevicesCollection();
   await setDoc(
@@ -394,9 +462,15 @@ export const updateDevice = async (deviceId, updates) => {
 };
 
 export const removeDevice = async (deviceId) => {
-  if (!isFirebaseReady() || !getCurrentUser()) {
+  if (shouldUseLocalDevices()) {
     saveLocalDevices(getLocalDevices().filter((device) => device.id !== deviceId));
     return;
+  }
+
+  const user = await resolveDeviceUser();
+
+  if (!user) {
+    throw new Error('Entre na conta antes de remover dispositivos.');
   }
 
   const devicesRef = getUserDevicesCollection();

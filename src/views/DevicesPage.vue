@@ -375,6 +375,7 @@ const loadDevices = async () => {
     syncTechnicalAlertNotifications(technicalAlerts.value);
   } catch (error) {
     errorMessage.value = 'Nao foi possivel carregar os dispositivos. Confira as permissoes do Firestore.';
+    devices.value = [];
   }
 };
 

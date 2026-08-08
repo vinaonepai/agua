@@ -366,6 +366,7 @@ const loadDashboardDevices = async () => {
   } catch (error) {
     devicesError.value = 'Nao foi possivel carregar dispositivos.';
     devices.value = [];
+    consumptionData.value = getConsumptionReadings(settings.value, []);
   }
 };
 

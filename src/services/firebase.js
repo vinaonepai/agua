@@ -72,6 +72,23 @@ export const getCurrentUser = () => auth?.currentUser || null;
 
 export const getFirestoreDb = () => db;
 
+export const waitForCurrentUser = () => {
+  if (!auth) {
+    return Promise.resolve(null);
+  }
+
+  if (auth.currentUser) {
+    return Promise.resolve(auth.currentUser);
+  }
+
+  return new Promise((resolve) => {
+    const stop = onAuthStateChanged(auth, (user) => {
+      stop();
+      resolve(user || null);
+    });
+  });
+};
+
 export const watchAuthUser = (callback) => {
   if (!auth) {
     callback(null);
