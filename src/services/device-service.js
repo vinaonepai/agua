@@ -61,6 +61,12 @@ const normalizeDevice = (device = {}) => ({
   lastReadingAt: device.lastReadingAt || null,
 });
 
+const withoutDeviceId = (device) => {
+  const payload = { ...device };
+  delete payload.id;
+  return payload;
+};
+
 const getLocalDevices = () => {
   try {
     const raw = localStorage.getItem(DEVICES_KEY);
@@ -236,7 +242,7 @@ export const createDevice = async (device) => {
   }
 
   const devicesRef = getUserDevicesCollection();
-  const { id, ...devicePayload } = nextDevice;
+  const devicePayload = withoutDeviceId(nextDevice);
   const created = await addDoc(devicesRef, {
     ...devicePayload,
     createdAt: serverTimestamp(),
@@ -358,7 +364,7 @@ export const updateDevice = async (deviceId, updates) => {
     ...updates,
     id: deviceId,
   });
-  const { id, ...payload } = nextUpdates;
+  const payload = withoutDeviceId(nextUpdates);
 
   if (!isFirebaseReady() || !getCurrentUser()) {
     saveLocalDevices(getLocalDevices().map((device) => (device.id === deviceId ? normalizeDevice({ ...device, ...updates }) : device)));
