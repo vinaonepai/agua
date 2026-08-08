@@ -217,13 +217,14 @@ export const downloadReportPdf = (report) => {
 
   page.rect(0, 0, pdfWidth, pdfHeight, '#f4fbfb');
   page.rect(0, 0, pdfWidth, 132, '#0d4b5e');
-  page.rect(0, 0, 180, 132, '#37c9c3');
-  page.text('Agua+', margin, 44, 22, '#ffffff', true);
-  page.text('Relatorio operacional de consumo', margin, 76, 20, '#ffffff', true);
-  page.text(`Gerado em ${formatDateTime(report.generatedAt)}`, margin, 100, 10, '#ddfbf8');
-  page.text(institution, 330, 48, 14, '#ffffff', true);
-  page.text(unit, 330, 68, 10, '#ddfbf8');
-  page.text(report.account.name || 'Usuario Agua+', 330, 88, 9, '#ddfbf8');
+  page.rect(0, 0, 300, 132, '#37c9c3');
+  page.text('Agua+', margin, 42, 22, '#ffffff', true);
+  page.text('Relatorio operacional', margin, 76, 18, '#ffffff', true);
+  page.text('de consumo', margin, 100, 18, '#ffffff', true);
+  page.text(`Gerado em ${formatDateTime(report.generatedAt)}`, 350, 44, 9, '#ddfbf8');
+  page.text(institution, 350, 70, 14, '#ffffff', true);
+  page.text(unit, 350, 92, 10, '#ddfbf8');
+  page.text(report.account.name || 'Usuario Agua+', 350, 110, 9, '#ddfbf8');
 
   drawMetric(page, {
     x: margin,
